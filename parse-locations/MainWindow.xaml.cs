@@ -15,6 +15,9 @@ using SpotifyAPI.Web.Enums;
 using SpotifyAPI.Web.Models;
 using SpotifyAPI.Web;
 using System.Threading.Tasks;
+using Esri.ArcGISRuntime.Geometry;
+using Esri.ArcGISRuntime.Tasks.Geocoding;
+using Esri.ArcGISRuntime.UI;
 
 namespace ParseLocations
 {
@@ -28,7 +31,8 @@ namespace ParseLocations
         StructuredDataExtractor _artistScraping;
         StructuredDataExtractor _listenerScraping;
         string _spotifyAcessToken = string.Empty;
-        string _spotifyTestPlaylistId = "32PFpdBZUi3x1MdeZdCCHb";
+        string _spotifyTestPlaylistId = @"32PFpdBZUi3x1MdeZdCCHb";
+        string _locatorUrl = @"https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
 
         public MainWindow()
         {
@@ -93,20 +97,20 @@ namespace ParseLocations
             foreach(PlaylistTrack plt in tracks.Items)
             {
                 SimpleArtist artist = plt.Track.Artists.FirstOrDefault();
-                string bioUrl = $"https://open.spotify.com/artist/{artist.Id}/about";
-                ArtistLocationInfo locations = await ScrapeArtistInfo(bioUrl);
+                ArtistLocationInfo locations = await ScrapeArtistInfo(artist);
             }
         }
 
-        private async Task<ArtistLocationInfo> ScrapeArtistInfo(string aboutArtistUrl)
+        private async Task<ArtistLocationInfo> ScrapeArtistInfo(SimpleArtist artist)
         {
+            string bioUrl = $"https://open.spotify.com/artist/{artist.Id}/about";
             string pageContent = "";
 
             using (HttpClient client = new HttpClient())
             {
                 client.DefaultRequestHeaders.Add("User-Agent", "C# console program");
 
-                pageContent = await client.GetStringAsync(aboutArtistUrl);
+                pageContent = await client.GetStringAsync(bioUrl);
             }
 
             var artistResults = _artistScraping.Extract(pageContent);
@@ -125,41 +129,98 @@ namespace ParseLocations
 
             string aboutArtistJson = JsonConvert.SerializeObject(fullBio, Newtonsoft.Json.Formatting.Indented);
 
-            ArtistLocationInfo locations = FindLocations(aboutArtistJson, listenerCities);
+            //ArtistLocationInfo locations = await FindLocations(aboutArtistJson, listenerCities);
 
-            return locations;
-        }
-
-        private ArtistLocationInfo FindLocations(string about, Dictionary<string, long> listenerInfo)
-        {
-            string classifiedXml = _classifier.classifyWithInlineXML(about);
+            //return locations;
+            string classifiedXml = _classifier.classifyWithInlineXML(aboutArtistJson);
 
             MatchCollection locationMatches = _locationRx.Matches(classifiedXml);
-            string primaryLocation = string.Empty;
-            Dictionary<string, string> otherLocations = new Dictionary<string, string>();
-            for(int i=0; i < locationMatches.Count; i++)
+            Dictionary<string, Graphic> artistLocations = new Dictionary<string, Graphic>();
+
+            for (int i = 0; i < locationMatches.Count; i++)
             {
                 var m = locationMatches[i];
-                var loc = m.Groups[1];
+                string loc = m.Groups[1].Value;
+                MapPoint geocodedLocation = await GeocodeArtistPlacename(loc);
+                if (geocodedLocation == null) { continue; }
+
+                Graphic locationGraphic = new Graphic(geocodedLocation);
+                locationGraphic.Attributes.Add("Name", loc);
+                locationGraphic.Attributes.Add("ArtistName", artist.Name);
+                locationGraphic.Attributes.Add("ArtistId", artist.Id);
                 if (i == 0)
                 {
-                    primaryLocation = loc.Value;
-                    continue;
+                    locationGraphic.Attributes.Add("IsHometown", true);
                 }
 
-                if (!otherLocations.ContainsKey(loc.Value))
+                if (!artistLocations.ContainsKey(loc))
                 {
-                    otherLocations.Add(loc.Value, loc.Value);
+                    artistLocations.Add(loc, locationGraphic);
                 }
             }
 
-            LocationsList.ItemsSource = otherLocations.Keys;
-            ResultTextBlock.Text = classifiedXml;
+            // Create points for the listener cities
+            int r = 0;
+            foreach(var lc in listenerCities)
+            {
+                r++;
+                MapPoint geocodedLocation = await GeocodeArtistPlacename(lc.Key);
+                if (geocodedLocation == null) { continue; }
 
-            ArtistLocationInfo artistInfo = new ArtistLocationInfo(primaryLocation, otherLocations.Keys.ToList(), listenerInfo);
+                Graphic locationGraphic = new Graphic(geocodedLocation);
+                locationGraphic.Attributes.Add("Name", lc.Key);
+                locationGraphic.Attributes.Add("ArtistName", artist.Name);
+                locationGraphic.Attributes.Add("ArtistId", artist.Id);
+                locationGraphic.Attributes.Add("Listeners", lc.Value);
+                locationGraphic.Attributes.Add("ListenerRank", r);
+
+                if (!artistLocations.ContainsKey(lc.Key))
+                {
+                    artistLocations.Add(lc.Key, locationGraphic);
+                }
+            }
+
+            ArtistLocationInfo artistInfo = new ArtistLocationInfo(artistLocations.Values.ToList());
 
             return artistInfo;
         }
+
+        //private async Task<ArtistLocationInfo> FindLocations(string about, Dictionary<string, long> listenerInfo)
+        //{
+        //    string classifiedXml = _classifier.classifyWithInlineXML(about);
+
+        //    MatchCollection locationMatches = _locationRx.Matches(classifiedXml);
+        //    Graphic hometownGraphic = new Graphic();
+        //    List<Graphic> otherLocations = new List<Graphic>();
+
+        //    for(int i=0; i < locationMatches.Count; i++)
+        //    {
+        //        var m = locationMatches[i];
+        //        string loc = m.Groups[1].Value;
+        //        MapPoint geocodedLocation = await GeocodeArtistPlacename(loc);
+        //        if(geocodedLocation == null) { continue; }
+
+        //        if (i == 0)
+        //        {
+        //            hometownGraphic.Geometry = geocodedLocation;
+        //            hometownGraphic.Attributes.Add("Name", loc);
+
+        //            continue;
+        //        }
+
+        //        if (!otherLocations.ContainsKey(loc))
+        //        {
+        //            otherLocations.Add(loc, geocodedLocation);
+        //        }
+        //    }
+
+        //    LocationsList.ItemsSource = otherLocations.Keys;
+        //    ResultTextBlock.Text = classifiedXml;
+
+        //    ArtistLocationInfo artistInfo = new ArtistLocationInfo(primaryLocation, otherLocations.Keys.ToList(), listenerInfo);
+
+        //    return artistInfo;
+        //}
 
         //see https://developer.spotify.com/web-api/authorization-guide/#client_credentials_flow
         public void GetClientCredentialsAuthToken()
@@ -192,19 +253,35 @@ namespace ParseLocations
 
             return inputString.Substring(stringStartPos, stringLength);
         }
+
+        private async Task<MapPoint> GeocodeArtistPlacename(string placeName)
+        {
+            MapPoint matchedPoint = null;
+            LocatorTask locatorTask = new LocatorTask(new System.Uri(_locatorUrl));
+            GeocodeParameters p = new GeocodeParameters
+            {
+                MaxResults = 1,
+                MinScore = 85
+            };
+            IReadOnlyList<GeocodeResult> placeMatches = await locatorTask.GeocodeAsync(placeName, p);
+
+            if (placeMatches.Count > 0)
+            {
+                GeocodeResult place = placeMatches.FirstOrDefault();
+                matchedPoint = place.DisplayLocation;
+            }
+
+            return matchedPoint;
+        }
     }
 
     public class ArtistLocationInfo
     {
-        public string PrimaryLocation { get; set; }
-        public List<string> OtherLocations { get; set; }
-        public Dictionary<string, long> ListenersFrom { get; set; }
+        public List<Graphic> ArtistCities { get; set; }
 
-        public ArtistLocationInfo(string primaryLocation, List<string> secondaryLocations, Dictionary<string, long> listenerInfo)
+        public ArtistLocationInfo(List<Graphic> artistCities)
         {
-            PrimaryLocation = primaryLocation;
-            OtherLocations = secondaryLocations;
-            ListenersFrom = listenerInfo;
+            ArtistCities = artistCities;
         }
     }
 }

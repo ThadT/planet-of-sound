@@ -21,18 +21,12 @@
                 <ColumnDefinition Width="60"/>
                 <ColumnDefinition/>
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0"
-                       HorizontalAlignment="Right" VerticalAlignment="Center"
-                       Text="URL:"/>
-            <TextBox x:Name="PageUrlTextBox" 
-                     Grid.Column="1"
-                     Margin="5,10"
-                     Text="https://open.spotify.com/artist/7gMCi9ouTHLfqzJsjL1UVg/about"/>
+
             <Button x:Name="ScrapeButton"
                     Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
                     HorizontalAlignment="Center"
                     Padding="20,2" Margin="20,5"
-                    Content="Scrape page"
+                    Content="Scrape Spotify"
                     Click="ScrapeButton_Click"/>
 
         </Grid>

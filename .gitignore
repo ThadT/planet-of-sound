@@ -1,2 +1,4 @@
 parse-locations/packages/
 parse-locations/.vs/
+parse-locations/bin/
+parse-locations/obj/
