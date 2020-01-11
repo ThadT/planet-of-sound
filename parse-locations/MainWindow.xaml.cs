@@ -226,7 +226,7 @@ namespace ParseLocations
         public void GetClientCredentialsAuthToken()
         {
             var spotifyClient = "093838caadba48c9a5ffcc7039b9de23";
-            var spotifySecret = "c8a5c9aac5994b42a5e7c02a1f40e6ee";
+            var spotifySecret = "<secret>";
 
             var webClient = new WebClient();
 
