@@ -30,9 +30,11 @@ namespace ParseLocations
     {
         private SpotifyWebAPI _spotify;
         private string _hometownLayerId = @"3d11c2713f5e48099ab4087ef332059a";
+        private string _listenerLayerId = @"f364ee167b1241ea809e9d138a8718ee";
         private string _otherPointsLayerId = @"ad22901d56104adeaa79caf3c63d5221";
         private ServiceFeatureTable _otherPointsTable;
         private ServiceFeatureTable _hometownTable;
+        private ServiceFeatureTable _listenerTable;
         private CRFClassifier _classifier;
         private Regex _locationRx;
         StructuredDataExtractor _artistScraping;
@@ -79,10 +81,13 @@ namespace ParseLocations
             ArcGISPortal portal = await ArcGISPortal.CreateAsync();
             PortalItem hometownLayerItem = await PortalItem.CreateAsync(portal, _hometownLayerId);
             PortalItem otherPointsLayerItem = await PortalItem.CreateAsync(portal, _otherPointsLayerId);
+            PortalItem listenerLayerItem = await PortalItem.CreateAsync(portal, _listenerLayerId);
             _hometownTable = new ServiceFeatureTable(hometownLayerItem, 0);
             _otherPointsTable = new ServiceFeatureTable(otherPointsLayerItem, 0);
+            _listenerTable = new ServiceFeatureTable(listenerLayerItem, 0);
             await _hometownTable.LoadAsync();
             await _otherPointsTable.LoadAsync();
+            await _listenerTable.LoadAsync();
         }
         
         private Paging<PlaylistTrack> GetPlaylistTracks()
@@ -176,46 +181,47 @@ namespace ParseLocations
             MatchCollection locationMatches = _locationRx.Matches(classifiedXml);
             
             Dictionary<string, Graphic> artistLocations = new Dictionary<string, Graphic>();
+            //UNCOMMENT 
+            //// Build artist locations
+            //for (int i = 0; i < locationMatches.Count; i++)
+            //{
+            //    var m = locationMatches[i];
+            //    string loc = m.Groups[1].Value;
+            //    MapPoint geocodedLocation = await GeocodeArtistPlacename(loc);
+            //    if (geocodedLocation == null) { continue; }
 
-            // Build artist locations
-            for (int i = 0; i < locationMatches.Count; i++)
-            {
-                var m = locationMatches[i];
-                string loc = m.Groups[1].Value;
-                MapPoint geocodedLocation = await GeocodeArtistPlacename(loc);
-                if (geocodedLocation == null) { continue; }
+            //    // If the place name was geocoded, create a new feature to store it
+            //    // (first one is considered the hometown) :\
+            //    if (i == 0)
+            //    {
+            //        Feature newHometownFeature = _hometownTable.CreateFeature();
+            //        newHometownFeature.Geometry = geocodedLocation;
+            //        newHometownFeature.Attributes["placename"] = loc;
+            //        newHometownFeature.Attributes["artistname"] = artist.Name;
+            //        newHometownFeature.Attributes["artistid"] = artist.Id;
+            //        newHometownFeature.Attributes["imageurl"] = artist.Images.Last().Url;
+            //        newHometownFeature.Attributes["bioshort"] = shortBio;
 
-                // If the place name was geocoded, create a new feature to store it
-                // (first one is considered the hometown) :\
-                if (i == 0)
-                {
-                    Feature newHometownFeature = _hometownTable.CreateFeature();
-                    newHometownFeature.Geometry = geocodedLocation;
-                    newHometownFeature.Attributes["placename"] = loc;
-                    newHometownFeature.Attributes["artistname"] = artist.Name;
-                    newHometownFeature.Attributes["artistid"] = artist.Id;
-                    newHometownFeature.Attributes["imageurl"] = artist.Images.Last().Url;
-                    newHometownFeature.Attributes["bioshort"] = shortBio;
+            //        await _hometownTable.AddFeatureAsync(newHometownFeature);
+            //    }
+            //    else
+            //    {
+            //        if (!artistLocations.ContainsKey(loc))
+            //        {
+            //            Feature otherFeature = _otherPointsTable.CreateFeature();
+            //            otherFeature.Geometry = geocodedLocation;
+            //            otherFeature.Attributes["placename"] = loc;
+            //            otherFeature.Attributes["artistname"] = artist.Name;
+            //            otherFeature.Attributes["artistid"] = artist.Id;
 
-                    await _hometownTable.AddFeatureAsync(newHometownFeature);
-                }
-                else
-                {
-                    if (!artistLocations.ContainsKey(loc))
-                    {
-                        Feature otherFeature = _otherPointsTable.CreateFeature();
-                        otherFeature.Geometry = geocodedLocation;
-                        otherFeature.Attributes["placename"] = loc;
-                        otherFeature.Attributes["artistname"] = artist.Name;
-                        otherFeature.Attributes["artistid"] = artist.Id;
+            //            await _otherPointsTable.AddFeatureAsync(otherFeature);
+            //        }
+            //    }
+            //}
 
-                        await _otherPointsTable.AddFeatureAsync(otherFeature);
-                    }
-                }
-            }
-
-            // Apply edits to the hometown table (will apply other edits after adding listener cities)
-            await _hometownTable.ApplyEditsAsync();
+            //// Apply edits to the hometown table (will apply other edits after adding listener cities)
+            //await _hometownTable.ApplyEditsAsync();
+            //**UNCOMMENT
 
             // Create points for the listener cities
             int r = 0;
@@ -225,7 +231,7 @@ namespace ParseLocations
                 MapPoint geocodedLocation = await GeocodeArtistPlacename(lc.Key);
                 if (geocodedLocation == null) { continue; }
                 
-                Feature otherFeature = _otherPointsTable.CreateFeature();
+                Feature otherFeature = _listenerTable.CreateFeature();
                 otherFeature.Geometry = geocodedLocation;
                 otherFeature.Attributes["placename"] = lc.Key;
                 otherFeature.Attributes["artistname"] = artist.Name;
@@ -233,11 +239,11 @@ namespace ParseLocations
                 otherFeature.Attributes["listenercount"] = lc.Value;
                 otherFeature.Attributes["listenerrank"] = r;
 
-                await _otherPointsTable.AddFeatureAsync(otherFeature);
+                await _listenerTable.AddFeatureAsync(otherFeature);
             }
 
             // Apply edits to the other locations table
-            await _otherPointsTable.ApplyEditsAsync();
+            await _listenerTable.ApplyEditsAsync();
 
             ArtistProgressList.Items.Add(artist.Name);
         }
@@ -245,8 +251,13 @@ namespace ParseLocations
         //see https://developer.spotify.com/web-api/authorization-guide/#client_credentials_flow
         public void GetClientCredentialsAuthToken()
         {
-            var spotifyClient = "2e496ec1fec84a36acb345a446f7761c";
-            var spotifySecret = "ee2adbe865c345abbedc41c77582f993";
+            FileStream appInfo = System.IO.File.OpenRead(@"C:\Temp\Spotify_PlanetOfSoundAppId.txt");
+            TextReader appInfoReader = new StreamReader(appInfo);
+            string appInfoText = appInfoReader.ReadToEnd();
+            string[] info = appInfoText.Split(new string[] { "\r\n" }, System.StringSplitOptions.RemoveEmptyEntries);
+
+            var spotifyClient = info[0].Split(":".ToCharArray())[1]; 
+            var spotifySecret = info[1].Split(":".ToCharArray())[1];
 
             using (WebClient webClient = new WebClient())
             {

@@ -2,3 +2,7 @@ parse-locations/packages/
 parse-locations/.vs/
 parse-locations/bin/
 parse-locations/obj/
+playlist-map/PlaylistMap/bin/
+playlist-map/PlaylistMap/obj/
+playlist-map/PlaylistMap/packages/
+playlist-map/PlaylistMap/.vs/
