@@ -13,5 +13,10 @@ namespace PlaylistMap
     /// </summary>
     public partial class App : Application
     {
+        protected override void OnStartup(StartupEventArgs e)
+        {
+            base.OnStartup(e);
+            Esri.ArcGISRuntime.ArcGISRuntimeEnvironment.SetLicense(@"runtimeadvanced,1000,rud549870138,21-oct-2020,A3C1TK8EL9G5TGE59129");
+        }
     }
 }

@@ -4,6 +4,35 @@
              xmlns:local="clr-namespace:PlaylistMap"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <Grid x:Name="TourCalloutPanel" x:Key="TourCalloutPanel">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="40"/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="20"/>
+                <RowDefinition Height="20"/>
+                <RowDefinition Height="20"/>
+                <RowDefinition Height="200"/>
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="TitleTextBlock" Grid.Row="0" Grid.ColumnSpan="2" 
+                       Text="Tour name"
+                       HorizontalAlignment="Center"/>
+            <TextBlock Grid.Row="1" Grid.Column="0" 
+                       HorizontalAlignment="Right"
+                       Text="Date: "/>
+            <TextBlock x:Name="EventDateTextBlock" Grid.Row="1" Grid.Column="1" 
+                       Text="1/1/2020"
+                       HorizontalAlignment="Left" Margin="5,0"/>
+            <TextBlock Grid.Row="2" Grid.Column="0" 
+                       Text="Venue: " 
+                       HorizontalAlignment="Right" />
+            <TextBlock x:Name="EventVenueTextBlock" Grid.Row="2" Grid.Column="1" 
+                       HorizontalAlignment="Left"
+                       Margin="5,0"
+                       Text="TBD" />
+            <Image x:Name="TourImage" 
+                   Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"/>
+        </Grid>
     </Application.Resources>
 </Application>
